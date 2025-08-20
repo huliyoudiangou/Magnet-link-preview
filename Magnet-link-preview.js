@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         磁链图片预览
 // @namespace    https://t.me/Melodic_Tides_chat
-// @version      4.0
-// @description  采用“主题自适应”按钮样式，兼容深色模式，并更新了匹配网站列表。
+// @version      4.1
+// @description  采用“主题自适应”按钮样式，兼容深色模式，并更新了匹配网站列表。修复了在部分网站上的按钮定位优先级问题。
 // @author       MakiZhang
 // @copyright    2025, MakiZhang
 // @license      CC-BY-NC-SA-4.0
@@ -39,11 +39,14 @@
 // @match        *://*.similarweb.com/*
 // @match        *://*.lamentations1.buzz/*
 // @match        *://*.knaben.org/*
+// @match        *://*.navix.site/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_setClipboard
+// @downloadURL https://update.greasyfork.org/scripts/546250/%E7%A3%81%E9%93%BE%E5%9B%BE%E7%89%87%E9%A2%84%E8%A7%88.user.js
+// @updateURL https://update.greasyfork.org/scripts/546250/%E7%A3%81%E9%93%BE%E5%9B%BE%E7%89%87%E9%A2%84%E8%A7%88.meta.js
 // ==/UserScript==
 
 (function () {
@@ -254,33 +257,47 @@
 
     function findAndProcessMagnetLinks(rootNode) {
         const walker = document.createTreeWalker(rootNode, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
-        const explicitCandidates = [], implicitCandidates = [];
+        const explicitCandidates = []; // 将包含 <a> 标签（高优先级）
+        const implicitCandidates = []; // 将包含文本节点（低优先级）
         const handledHashes = new Set();
+
         while (walker.nextNode()) {
             const node = walker.currentNode;
             if (node.parentNode.closest('.preview-img, #qBox')) continue;
-            let content = '', isExplicit = false;
-            if (node.nodeType === Node.TEXT_NODE && !['SCRIPT', 'STYLE', 'BUTTON'].includes(node.parentNode.tagName)) {
-                content = node.nodeValue; isExplicit = true;
-            } else if (node.nodeType === Node.ELEMENT_NODE && node.tagName.toLowerCase() === 'a' && node.href) {
+
+            let content = '', targetList = null;
+
+            // 通过放入 explicitCandidates 列表来优先处理 <a> 标签
+            if (node.nodeType === Node.ELEMENT_NODE && node.tagName.toLowerCase() === 'a' && node.href) {
                 content = node.href;
-                isExplicit = (node.textContent.includes('magnet:?xt=urn:btih:') || /\b[a-f0-9]{40}\b/.test(node.textContent));
-            } else continue;
+                targetList = explicitCandidates;
+            // 通过放入 implicitCandidates 列表来降低纯文本节点的优先级
+            } else if (node.nodeType === Node.TEXT_NODE && !node.parentNode.closest('a, button, script, style')) {
+                content = node.nodeValue;
+                targetList = implicitCandidates;
+            } else {
+                continue;
+            }
+
             for (const regex of regexArr) {
                 const match = regex.exec(content);
                 if (match) {
                     const hash = match[1].toLowerCase();
-                    const candidate = { hash, magnet: `magnet:?xt=urn:btih:${hash}`, node, title: node.textContent.trim().substring(0, 50) || '磁力链接' };
-                    if (isExplicit) explicitCandidates.push(candidate); else implicitCandidates.push(candidate);
+                    const title = (node.textContent || '').trim().substring(0, 50) || '磁力链接';
+                    const candidate = { hash, magnet: `magnet:?xt=urn:btih:${hash}`, node, title };
+                    targetList.push(candidate);
                     break;
                 }
             }
         }
+
         const processCandidate = (candidate) => {
             if (handledHashes.has(candidate.hash) || processedNodes.has(candidate.node)) return;
             addButton(candidate.node, candidate.magnet, candidate.title);
             handledHashes.add(candidate.hash);
         };
+
+        // 首先处理高优先级的链接，然后才处理作为备选的纯文本节点
         explicitCandidates.forEach(processCandidate);
         implicitCandidates.forEach(processCandidate);
     }
