@@ -45,8 +45,6 @@
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_setClipboard
-// @downloadURL https://update.greasyfork.org/scripts/546250/%E7%A3%81%E9%93%BE%E5%9B%BE%E7%89%87%E9%A2%84%E8%A7%88.user.js
-// @updateURL https://update.greasyfork.org/scripts/546250/%E7%A3%81%E9%93%BE%E5%9B%BE%E7%89%87%E9%A2%84%E8%A7%88.meta.js
 // ==/UserScript==
 
 (function () {
